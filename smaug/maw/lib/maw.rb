@@ -2,7 +2,7 @@
 # https://github.com/togetherbeer/maw
 #
 # @copyright 2021 mooff <mooff@@together.beer>
-# @version 1.3.2
+# @version 1.3.9
 # @license AGPLv3
 
 $outputs = $args.outputs
@@ -48,7 +48,7 @@ module Maw
 
           @tick_times[(@tick_times_i += 1) % @tick_time_history_count] = Time.now - start
 
-          if @tick_time_log and $args.tick_count % (60*5) == 0
+          if @tick_time_log and $args.tick_count % (@tick_time_log_interval) == 0
             total = 0
             for time in @tick_times
               total += time
@@ -67,6 +67,7 @@ module Maw
       @tick_times = []
       @tick_time_history_count = opts[:history] || 64
       @tick_time_log = opts[:log] != false
+      @tick_time_log_interval = opts[:log_interval] || 60*5 # log every this number of frames
     end
   end
 
@@ -98,15 +99,15 @@ module Maw
       end
     end
 
-    def args
+    private def args
       $args
     end
 
-    def tick_count
+    private def tick_count
       Kernel.tick_count
     end
 
-    def controls &blk
+    private def controls &blk
       $default_controls ||= ::Maw::Controls.new
       $default_controls.instance_eval(&blk) if blk
       $default_controls
@@ -123,14 +124,37 @@ module Maw
     def sounds
       $outputs.sounds
     end
+
+    PRODUCTION = $gtk.production
+
+    def prod?; PRODUCTION; end
+    def dev?; !PRODUCTION; end
+
+    alias :production? :prod?
+    alias :development? :dev?
+
+    DESKTOP_PLATFORMS = ['Windows', 'Linux', 'Mac'].freeze
+
+    def desktop?
+      DESKTOP_PLATFORMS.include? $gtk.platform
+    end
+
+    instance_methods(false).each do |method|
+      private method
+    end
   end
 
   class Controls
+    @@i = 0
+    def self.next_name
+      "Control Set #{@@i+=1}"
+    end
+
     attr_accessor :name
     
-    @@i = 0    
-    def initialize name="Control Set #{@@i+=1}", &blk
-      @name = name
+    def initialize name=nil, &blk
+      @name = name || Controls.next_name
+      @latch = {}
 
       instance_exec(&blk) if blk
       self
@@ -139,9 +163,19 @@ module Maw
     def to_s; "[#{name}]"; end
 
     def is? state, device, key
-      if device == :mouse # mouse doesn't support state qualifiers like .key_down, .key_held etc
+      case device
+      when :mouse
+        # mouse doesn't support state qualifiers .key_down, .key_held etc
         $args.inputs.mouse.send(key)
+      when :controller_three
+        # controller_three is not aliased under inputs, but
+        # we can make it work
+        $args.inputs.controllers[2]&.send(state)&.send(key)
+      when :controller_four
+        # same deal here
+        $args.inputs.controllers[3]&.send(state)&.send(key)
       else
+        # this is the normal path
         $args.inputs.send(device).send(state).send(key)
       end
     end
@@ -156,12 +190,38 @@ module Maw
       map = normalize map
 
       define_down action, map
+      define_latch action, map
       define_held action, map
       define_up action, map
       define_active action, map
     end
 
     alias :action :define
+
+    def stub action
+      define action, {}
+    end
+
+    def method_missing name, *args, &blk
+      action = method_name_to_action name
+      if !$gtk.production
+        log_info "#{to_s} Defining stub for #{action} due to .#{name} being called."
+        log_info "#{to_s} You can hook it up like:"
+        log_info "#{to_s}   controls.define :#{action}, keyboard: :e, controller_one: :b"
+      end
+      stub action
+      send action
+    end
+
+    def method_name_to_action name
+      name = name.to_s.sub('?', '')
+      for suffix in ['_down', '_held', '_up', '_latch']
+        if name.end_with?(suffix)
+          name = name[0..name.rindex(suffix)-1]
+        end
+      end
+      name.to_sym
+    end
 
     private
 
@@ -180,6 +240,18 @@ module Maw
     def define_up action, map
       [:"#{action}_up", :"#{action}_up?"].each do |name|
         define_singleton_method(name) { any? :key_up, map }
+      end
+    end
+
+    def define_latch action, map
+      [:"#{action}_latch", :"#{action}_latch?"].each do |name|
+        define_singleton_method(name) {
+          if any?(:key_down, map)
+            @latch[action] = !@latch[action]
+          else
+            @latch[action]
+          end
+        }
       end
     end
 
