@@ -2,6 +2,7 @@ Maw!
 
 controls.define :quit, keyboard: :q, controller_one: [:start], mouse: :button_middle
 controls.define :reset, keyboard: :r, controller_one: :r1
+
 controls.define :debug, keyboard: :g, controller_one: :b
 controls.define :debug_framerate, keyboard: :t, controller_one: :x
 
@@ -19,10 +20,7 @@ DDX_BOOST = 0.97
 init {
   play_sound_effect
 
-  $state.background = [
-    0, 0, grid.w, grid.h,
-    rand(255), rand(255), rand(255)
-  ]
+  $state.background = [ rand(255), rand(255), rand(255) ]
 
   $state.player = {
     x: 500, y: 50, w: 280, h: 10,
@@ -49,10 +47,11 @@ tick {
     exit
   end
 
+  background! $state.background
+
   movement
   bounds
 
-  solids << $state.background
   solids << $state.player
 
   if controls.debug?
