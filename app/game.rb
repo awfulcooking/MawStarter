@@ -3,16 +3,12 @@ Maw!
 controls.define :quit, keyboard: :q, controller_one: [:start], mouse: :button_middle
 controls.define :reset, keyboard: :r, controller_one: :r1
 
-controls.define :debug, keyboard: :g, controller_one: :b
-controls.define :debug_framerate, keyboard: :t, controller_one: :x
+controls.define :framerate, keyboard: :t, controller_one: :x
 
 controls.define :left, keyboard: :a, controller_one: :left
 controls.define :right, keyboard: :d, controller_one: :right
-controls.define :up, keyboard: :w, controller_one: :up
-controls.define :down, keyboard: :s, controller_one: :down
 
 controls.define :boost, keyboard: :shift, controller_one: [:l2, :r2]
-controls.define :kick, keyboard: :e, controller_one: :a
 
 DDX_NORMAL = 0.92
 DDX_BOOST = 0.97
@@ -23,29 +19,17 @@ init {
   $state.background = [ rand(255), rand(255), rand(255) ]
 
   $state.player = {
-    x: 500, y: 50, w: 280, h: 10,
     r: 255, g: 105, b: 199,
+    x: 500, y: 50, w: 280, h: 10,
 
     dx: (3+rand(15)).rand_sign,
-    ddx: DDX_NORMAL
+    ddx: DDX_NORMAL,
   }
-
-  $state.nets = [
-    {x: 0, y: 0, w: 20, h: grid.h},         # left
-    {x: grid.w-20, y: 0, w: 20, h: grid.h}, # right
-    {x: 0, y: 0, w: grid.w, h: 20},         # bottom
-    {x: 0, y: grid.h-20, w: grid.w, h: 20}, # top
-  ]
 }
 
 tick {
-  if controls.reset_down?
-    init
-  end
-
-  if controls.quit?
-    exit
-  end
+  init if controls.reset_down?
+  exit if controls.quit?
 
   background! $state.background
 
@@ -54,13 +38,7 @@ tick {
 
   solids << $state.player
 
-  if controls.debug?
-    solids << $state.nets.map { |net|
-      {r: 0, g: 0, b: 200, a: 160}.merge! net
-    }
-  end
-
-  if controls.debug_framerate?
+  if controls.framerate_latch?
     primitives << $gtk.framerate_diagnostics_primitives
   end
 }
