@@ -2,11 +2,16 @@
 # https://github.com/togetherbeer/maw
 #
 # @copyright 2021 mooff <mooff@@together.beer>
-# @version 1.4.0
+# @version 1.4.1
 # @license AGPLv3
 
-$maw_version = "1.4.0"
-#$maw_source_location = __FILE__
+if $maw_version and $maw_source_location != __FILE__
+  puts "Maw has already been loaded from another location: #{$maw_source_location} (version #{$maw_version}).\nThis version (#{__FILE__}) will now abort, leaving the existing library unchanged."
+  return
+end
+
+$maw_version = "1.4.1"
+$maw_source_location = __FILE__
 
 $outputs = $args.outputs
 
@@ -47,15 +52,18 @@ module Maw
           init
         end
         if @time_ticks
-          start = Time.now
+          start = Time.now.to_f
           result = @tick&.call
 
-          @tick_times[(@tick_times_i += 1) % @tick_time_history_count] = Time.now - start
+          @tick_times[(@tick_times_i += 1) % @tick_time_history_count] = Time.now.to_f - start
 
           if @tick_time_log and $args.tick_count % (@tick_time_log_interval) == 0
             total = 0
-            for time in @tick_times
-              total += time
+            i = 0
+            len = @tick_times.size
+            while i < len
+              total += @tick_times.at(i)
+              i += 1
             end
             average = total / @tick_times.size
             log_info "[Maw] Average tick time: #{'%.2f' % (average*1000)} ms"
@@ -73,6 +81,8 @@ module Maw
       @tick_time_log = opts[:log] != false
       @tick_time_log_interval = opts[:log_interval] || 60*5 # log every this number of frames
     end
+
+    attr_reader :tick_times
   end
 
   module Ergonomic

@@ -13,7 +13,7 @@ version = "2.19"
 edition = "standard"
 
 [dependencies]
-maw = "1.3.2"
+maw = "1.3.9"
 
 [itch]
 # The Project URL you set when you created the game on Itch.io. https://my-username.itch.io/my-game.
